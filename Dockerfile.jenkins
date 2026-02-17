@@ -1,10 +1,45 @@
-FROM jenkins/jenkins:lts
+pipeline {
+    agent any
 
-USER root
+    stages {
 
-RUN apt-get update && \
-    apt-get install -y docker.io && \
-    usermod -aG docker jenkins
+        stage('Build Backend Image') {
+            steps {
+                sh 'docker build -t backend-app backend'
+            }
+        }
 
-USER jenkins
+        stage('Deploy Backends') {
+            steps {
+                sh '''
+                docker rm -f backend1 backend2 || true
+
+                docker run -d --name backend1 backend-app
+                docker run -d --name backend2 backend-app
+
+                sleep 3
+                '''
+            }
+        }
+
+        stage('Deploy NGINX') {
+            steps {
+                sh '''
+                docker rm -f nginx-lb || true
+
+                docker run -d --name nginx-lb \
+                -p 80:80 \
+                --link backend1 \
+                --link backend2 \
+                -v $(pwd)/nginx/default.conf:/etc/nginx/conf.d/default.conf \
+                nginx
+
+                sleep 2
+                '''
+            }
+        }
+
+    }
+}
+
 
